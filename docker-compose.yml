@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  # The Frontend Service (React App + Nginx Reverse Proxy)
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:80" # Maps port 80 in container to 8080 on host (Coolify usually manages this)
+    depends_on:
+      - pocketbase
+    environment:
+      # This is only for build time if we needed it, but we are using Nginx proxy now
+      - NODE_ENV=production
+
+  # The Backend Service (PocketBase)
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    container_name: pocketbase
+    restart: unless-stopped
+    # We don't necessarily need to expose this port if Nginx handles everything
+    # But useful for direct debugging if needed.
+    # ports:
+    #   - "8090:8090" 
+    volumes:
+      - ./pb_data:/pb/pb_data
+      - ./pb_migrations:/pb/pb_migrations # Mount migrations to auto-apply schemas
+    command:
+      - --encryptionEnv=PB_ENCRYPTION_KEY # Optional: set env var for encryption
+    healthcheck:
+      test: [ "CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8090/api/health" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    environment:
+      # IMPORTANT: If you want to use encryption for sensitive fields
+      - PB_ENCRYPTION_KEY=YourSecretEncryptionKeyHere123
